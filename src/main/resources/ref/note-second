@@ -1,0 +1,160 @@
+
+아이템 1. 생성자 대신 Static Factory Method 을 고려하라.
+    :Static Factory Method 은 생성자와 별도로 그 클래스의 인스턴스를 생성하여 반환하는 메서드다.
+    :Static Factory Method 은 생성자보다 더 좋은 장점 5가지를 가진다.
+
+    /**
+     * Returns a {@code Boolean} instance representing the specified
+     * {@code boolean} value.  If the specified {@code boolean} value
+     * is {@code true}, this method returns {@code Boolean.TRUE};
+     * if it is {@code false}, this method returns {@code Boolean.FALSE}.
+     * If a new {@code Boolean} instance is not required, this method
+     * should generally be used in preference to the constructor
+     * {@link #Boolean(boolean)}, as this method is likely to yield
+     * significantly better space and time performance.
+     *
+     * @param  b a boolean value.
+     * @return a {@code Boolean} instance representing {@code b}.
+     * @since  1.4
+     */
+    public static Boolean valueOf(boolean b) {
+        return (b ? TRUE : FALSE);
+    }
+
+    1. Static Factory Method 은 이름을 가질 수 있다.
+        :생성자는 반환될 객체의 특성을 제대로 설명하지 못하지만, Static Factory Method 은 이름만 잘 지으면
+        반환될 객체의 특성을 쉽게 설명할 수 있다.
+
+        ex)
+        public BigInteger(byte[] val)
+        public static BigInteger probablePrime(int bitLength, Random seed)
+    2. Static Factory Method 은 호출될 때마다 인스턴스를 새로 생성하지 않아도 된다.
+        : 불변 클래스(아이템 17) 을 미리 만들어 놓고 캐싱하여 재사용하는 방법을 채용할 수 있다. (Flyweight Pattern)
+        : 해당 클래스를 인스턴스 통제(instance-controlled) 클래스로 만들 수 있다.
+
+        @ToString
+        static class Coffee {
+            private static final Coffee BLACK = new Coffee("BLACK");
+            private final String name;
+
+            private Coffee(String name) {
+                this.name = name;
+            }
+
+            /**
+             * @param name of coffee
+             * @throws IllegalArgumentException if name is null
+             * @throws IllegalArgumentException if name is empty string
+             * @return
+             */
+            private static Coffee of(String name) {
+                checkArgument(Objects.nonNull(name) && !name.isEmpty());
+                if ("BLACK".equals(name))
+                    return BLACK;
+                return new Coffee(name);
+            }
+        }
+
+        @인스턴스 통제 클래스(instance-controlled) 클래스
+            :본인 클래스의 인스턴스를 언제 파괴, 생성할지를 통제하는 클래스.
+            :instance-controlled 클래스의 예로는 싱글턴(singleton) 혹은 "불변 값 클래스 (a == b 일때만 a.equal(b) 가 성립)", 열거 타입이 있다.
+
+    3. 반환 타입의 하위 타입 객체를 반환할 수 있는 능력이 있다.
+        :해당 구현 클래스를 공개하지 않고도 부모 클래스에서 그 객체를 반환하도록 반환할 수 있다.
+        :이는 인터페이스를 정적 팩터리 메서드의 반환 타입으로 사용하는 인터페이스 기반 프레임워크에서 자주 사용된다.
+        :특정 인터페이스를 구현한 동반 클래스를 private 내부 클래스로 만든 이후 정적 팩토리 메서드로 반환하면
+        "개념의 수" 가 줄어들어 클라이언트가 사용하기 편하다.
+        :클라이언트는 "인터페이스" 만으로 다루므로 해당 클래스를 다루는 난이도가 낮춰진다.
+        :예로는 Collections 의 45 개 유틸리티 구현제가 있다.
+
+        ex)
+        static class Collections {
+
+            public static <E> Collection<E> unmodifiableCollection(Collection<? extends E> c) {
+                return new UnmodifiableCollection<>(c);
+            }
+
+            private static class UnmodifiableCollection<E> implements Collection<E> {
+                private final Collection<? extends E> el;
+
+                public UnmodifiableCollection(Collection<? extends E> el) {
+                    checkArgument(el != null);
+                    this.el = el;
+                }
+
+                @Override
+                public E get(int index) {
+                    return el.get(index);
+                }
+
+                @Override
+                public void set(int index, E el) {
+                    throw new UnsupportedOperationException();
+                }
+            }
+        }
+
+    4. 입력 매개변수에 따라 매번 다른 클래스의 객체를 반환할 수 있다.
+        :3번의 기능을 더 추가한 예로써, 매개변수의 따라 서브 클래스의 "구현체" 를 판단한다.
+        :인터페이스를 리턴하므로 클라이언트는 인터페이스에 기반에 따라 프로그래밍한다. 따라서 구현체를 다음 릴리즈에서
+        교체하더라도 문제가 없다. (인터페이스 프로그래밍하라)
+
+    ex)
+        /**
+         * Creates an empty enum set with the specified element type.
+         *
+         * @param <E> The class of the elements in the set
+         * @param elementType the class object of the element type for this enum
+         *     set
+         * @return An empty enum set of the specified type.
+         * @throws NullPointerException if <tt>elementType</tt> is null
+         */
+        public static <E extends Enum<E>> EnumSet<E> noneOf(Class<E> elementType) {
+            Enum<?>[] universe = getUniverse(elementType);
+            if (universe == null)
+                throw new ClassCastException(elementType + " not an enum");
+            if (universe.length <= 64)  // Enum 의 갯수에 따라 구현체를 선택한다.
+                return new RegularEnumSet<>(elementType, universe);
+            else
+                return new JumboEnumSet<>(elementType, universe);
+        }
+
+    5. 정적 팩터리 메서드를 작정하는 시점에는 반환할 객체의 클래스는 존재하지 않아도 된다.
+        :이는 서비스 제공자 프레임워크 (service provider framework) 을 근간이 된다.
+        :서비스 제공자 프레임워크는 Service Interface, Provider Registration, Service Access 3가지 핵심 컴포넌트로 이뤄진다.
+
+    ex)
+        //Service interface
+        static interface Connection {
+
+        }
+
+        //Factory class for Service interface
+        static interface Driver {
+            Connection getConnection();
+        }
+
+        //Class for register and service access.
+        static class DriverManager {
+            private static final List<Driver> registerDrivers = new CopyOnWriteArrayList<>();
+
+            private DriverManager() { }
+
+            public static synchronized void registerDriver(Driver driver) {
+                checkArgument(Objects.nonNull(driver));
+                if (!registerDrivers.contains(driver))
+                    registerDrivers.add(driver);
+            }
+
+            //Static factory method for Service Implementation
+            public static Connection getConnection(String url)  {
+                for (Driver d: registerDrivers) {
+                    Connection con = Objects.requireNonNull(d.getConnection());
+                    return con;
+                }
+                throw new IllegalStateException();
+            }
+        }
+
+    아이템 1 핵심 정리.
+        Static Factory Method 은 대부분 생성자보다 유리한 경우가 더 많으므로 이를 구현함을 항상 고려하자.

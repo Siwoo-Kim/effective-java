@@ -457,7 +457,7 @@
                     ..
                 }
 
-    Singleton 클래스 대신 Enum 을 사용하라ㅏ.
+    Singleton 클래스 대신 Enum 을 사용하라.
         : Enum 은 더 간결하고, 추가 노력 없이 직렬화할 수 있고, 리플렉션 공격에서도 안전하다.
         : 대부분의 상황에서는 원소가 하나뿐인 열거 타입이 싱글턴을 만드는 가장 좋은 방법이다.
 
@@ -477,3 +477,296 @@
             Singleton singleton = (Singleton) e.newInstance();
             System.out.println(singleton == Singleton.INSTANCE);
         }
+
+아이템 4. 인스턴스화를 막으려거든 "private 생성자"를 사용하라.
+    : 유틸리티 클래스는 인스턴스로 만들어 쓰려고 설계한 것이 아니므로 "인스턴스화를 방지"해야 한다.
+    : 추상 클래스로 만드는 것은 인스턴스화를 막을 수 없으므로, private 생성자를 추가하라.
+
+    @유틸리티 클래스.
+        :"정적 메서드와 정적 필드를 담은 클래스"
+        :"기본 타입 값이나 배열에 관련된 메서드"들을 위해 만든 클래스 혹은
+        동적 인터페이스를 구현하는 객체를 생성해주는 "Static Factory Method 을 모아놓은 클래스",
+        "final 클래스와 관련한 메서드"들을 정의할 때외에는 유틸리티 클래스를 구현하지 말자.
+
+    인스턴스화를 방지하기 위해 "private 생성자"에 예외를 던져라.
+        :reflection 을 통한 인스턴스화를 막을 수 있다.
+
+    ex)
+        public class UtilityClass {
+
+        // Suppresses default constructor, ensuring non-instantiability.
+        // 인스턴스화를 방지한다 주석을 달자.
+        private UtilityClass() {
+            throw new AssertionError();
+        }
+
+        Constructor<?> c = UtilityClass.class.getDeclaredConstructors()[0];
+        c.setAccessible(true);
+        UtilityClass instance = (UtilityClass) c.newInstance();
+
+    아이템 4 핵심 정리.
+        유틸리티 클래스는 꼭 필요할시에만 구현하자.
+        유틸리티 클래스의 인스턴스화를 방지하기 위해선 private 생성자를 구현하고 예외를 던지도록 하자.
+
+아이템 5. 의존하는 자원을 직접 명시하지 말고 의존 객체 주입을 사용하라.
+    :대부분의 클래스는 하나 이상의 자원에 의존한다. 이때 자원을 해당 클래스에 직접 명시한다면 유연성이 떨어진다.
+
+    //정적 유틸리티를 잘못 사용한 예. (유틸리티 클래스 사용을 자제하라!)
+    public class SpellChecker {
+        private static final Lexicon dictionary = new Lexicon(); //컴파일 타임에 "특정 하나의 의존성에" 고정된다.
+
+        private SpellChecker() {
+            throw new AssertionError();
+        }
+
+        public static boolean isValid(String word) {
+            return dictionary.hasWord(word);
+        }
+
+        public static List<String> suggestions(String typo) {
+            return dictionary.getSuggestions(typo);
+        }
+    }
+
+    의존 객체 주입과 유연성.
+        :인스턴스를 생성할 때 "생성자에 필요한 자원을 넘겨받는 형식"을 의존 객체 주입 이라 한다.
+        :자원을 직접 명시하면 하나의 자원만 사용 가능하지만 "의존 객체 주입"을 이용해 자원을 사용하면 "사용하는 자원에 따라 동작이 달라져 유연성"이 높아진다.
+        :의존 객체 주입을 통해 자원을 공급 받으면 테스트 용이성을 높여준다. (테스트용 의존성을 주입할 수 있다.)
+        :의존 객체 주입은 생성자, Static Factory Method, Builder 패턴에 모두 응용 가능하다.
+
+    ex) 의존 객체 주입은 유연성과 테스트 용이성을 높여준다.
+        public class SpellChecker {
+            private Lexicon dictionary;
+
+            public SpellChecker(Lexicon dictionary) {
+                this.dictionary = Objects.requireNonNull(dictionary);
+            }
+
+            public boolean isValid(String word) {
+                return dictionary.hasWord(word);
+            }
+
+            public List<String> suggestions(String typo) {
+                return dictionary.getSuggestions(typo);
+            }
+
+            Lexicon mock = Mockito.mock(Lexicon.class);
+            SpellChecker spellChecker = new SpellChecker(mock);
+            spellChecker.isValid("hi");
+
+    의존 객체 주입과 자원 팩토리 제공.
+        :한정적 와일드카드 타입을 가진 "Supplier<T extends [Class]> 함수형 인터페이스"를 사용하여 SRP 의 원칙을 따라라.
+        :"의존 객체 주입"에 자원 팩토리를 제공하면 "의존 객체의 인스턴스화하는 코드"를 의존 객체로 부터 분리할 수 있다.
+    ex)
+        public class Mosaic {
+            private final Tile tile;
+
+            private Mosaic(Tile tile) {
+                this.tile = tile;
+            }
+
+            public static <T extends Tile> Mosaic of(Supplier<T> tileFactory) {
+                Tile tile = Objects.requireNonNull(tileFactory.get());
+                return new Mosaic(tile);
+            }
+        }
+
+    아이템 5 핵심 정리.
+        클래스가 내부적으로 하나 이상의 자원에 의존한다면 싱글턴 혹은 정적 유틸리티 클래스를 사용하지 마라.
+        자원들을 클래스 직접 만들게 (직접 명시) 해서도 안된다.
+        의존 자원이 필요하다면 생성자에 넘겨주어 (의존 주입) 클래스의 유연성, 재사용성, 테스트 용이성을 높여라.
+
+아이템 6. 불필요한 객체 생성을 피하라.
+    :똑같은 기능의 객체를 매번 생성하기보다 재사용하라.
+    :'불변 객체'는 언제든 재사용 가능하며 재상용을 한다면 빠르다.
+
+    @JVM의 String 스택.
+        :JVM 은 ""로 사용되는 문자열을 재사용한다.
+        :new 연산자로 생성된 문자열은 JVM 에 의해 재사용되지 않고 새로 생성되므로 절대 String 생성자를 사용하지 말자.
+
+        /**
+         * Initializes a newly created {@code String} object so that it represents
+         * the same sequence of characters as the argument; in other words, the
+         * newly created string is a copy of the argument string. Unless an
+         * explicit copy of {@code original} is needed, use of this constructor is
+         * unnecessary since Strings are immutable.
+         *
+         * @param  original
+         *         A {@code String}
+         */
+        public String(String original) {
+            this.value = original.value;
+            this.hash = original.hash;
+        }
+
+        ex)
+            String s = new String(".."); //절대 하지 말 것.
+
+    ex) 불변 객체를 재사용하면 빠르다. (공간 복잡도 뿐만 아니라 시간 복잡도도 매우 증가한다.)
+        :"" 으로 사용된 문자열은 가상 머신 안에서 이와 똑같은 문자열 리터럴을 사용하는 코드가 "같은 객체" 를 재사용함을 보장하므로 초기화 과정이 제외되 빠르다 가볍다.
+        :Boolean.valueOf(String) 은 새로운 객체를 생성하는 대신 정적 팩토리를 이용하여 미리 생성된 객체를 반환하므로 빠르다. (아이템 1. 정적 팩토리 메서드를 사용하라)
+
+        Stopwatch stopwatch = Stopwatch.createStarted();
+        for (int i=0; i<Integer.MAX_VALUE; i++) {
+            String s = new String("bikini");    //69.38ms
+        }
+        System.out.println(stopwatch.stop());
+        stopwatch = Stopwatch.createStarted();
+        for (int i=0; i<Integer.MAX_VALUE; i++) {
+            String s = "bikini";                //2.076ms
+        }
+        System.out.println(stopwatch.stop());
+
+    생성 비용이 비싼 객체는 되도록 재사용하라.
+        :생성 비용이 "비싼 객체"가 반복해서 필요하다면 "캐싱" 하여서 재사용하라.
+
+    ex) 비싼 객체인 Pattern 인스턴스가 메서드 호출마다 생성되고 버려진다.
+        class RomanNumerals {
+            private final String roman;
+            public RomanNumerals(String roman) {
+                checkArgument(roman != null && isRomanNumeral(roman));
+                this.roman = roman;
+            }
+
+            private boolean isRomanNumeral(String s) {
+                return s.matches("(^(?=[MDCLXVI])M*(C[MD]|D?C{0,3})(X[CL]|L?X{0,3})(I[XV]|V?I{0,3})$)");    //String.match 은 내부적으로 Pattern 인스턴스를 매번 생성한다.
+            }
+        }
+
+    ex) 값비싼 Pattern 인스턴스를 재사용해 성능을 높인다.
+
+        class RomanNumerals {
+            private final String roman;
+            private static final Pattern ROMAN = Pattern.compile("(^(?=[MDCLXVI])M*(C[MD]|D?C{0,3})(X[CL]|L?X{0,3})(I[XV]|V?I{0,3})$)");
+            private static final Map<String, ReusedRomanNumerals> cache = new ConcurrentHashMap<>();
+
+            public ReusedRomanNumerals(String roman) {
+                checkArgument(roman != null && ROMAN.matcher(roman).matches());
+                this.roman = roman;
+            }
+
+            public static ReusedRomanNumerals of(String roman) {
+                if (cache.containsKey(roman))
+                    return cache.get(roman);
+                checkArgument(roman != null && ROMAN.matcher(roman).matches());
+                ReusedRomanNumerals n = new ReusedRomanNumerals(roman);
+                cache.computeIfAbsent(roman, k -> n);
+                return n;
+            }
+
+            stopwatch = Stopwatch.createStarted();
+            for (int i=0; i<5000000; i++) {
+                RomanNumerals rn = new RomanNumerals("XL"); //6.562s 비싼 객체 매번 생성시
+            }
+            System.out.println(stopwatch.stop());
+
+            stopwatch = Stopwatch.createStarted();
+            for (int i=0; i<5000000; i++) {
+                ReusedRomanNumerals rn = new ReusedRomanNumerals("XL"); //0.008 s 비싼 의존 객체 캐싱화
+            }
+            System.out.println(stopwatch.stop());
+
+
+            stopwatch = Stopwatch.createStarted();
+            for (int i=0; i<5000000; i++) {
+                ReusedRomanNumerals rn = ReusedRomanNumerals.of("XL"); //0.0008 s 인스통제 클래스를 통한 캐싱화
+            }
+            System.out.println(stopwatch.stop());
+
+    객체를 불변으로 만들어 재사용하자.
+        :불변이라면 재사용해도 항상 안전하다.
+
+    Map의 keySet 과 어댑터 패턴.
+        @어댑터 패턴.
+            : 3자 클라이언트와의 호환성을 위한 인터페이스을 정의한 클래스로 실제 작업은 뒷단 객체에 위임한다.
+            : 어댑터는 뷰 (View) 라고 부르기도 한다.
+
+        Map 은 keySet(View) 을 위해 어댑터 패턴을 이용하며, 이때 내부 자료 구조를 재사용한다.
+        ex)
+            /**
+             * {@inheritDoc}
+             *
+             * @implSpec
+             * This implementation returns a set that subclasses {@link AbstractSet}.
+             * The subclass's iterator method returns a "wrapper object" over this
+             * map's <tt>entrySet()</tt> iterator.  The <tt>size</tt> method
+             * delegates to this map's <tt>size</tt> method and the
+             * <tt>contains</tt> method delegates to this map's
+             * <tt>containsKey</tt> method.
+             *
+             * <p>The set is created the first time this method is called,
+             * and returned in response to all subsequent calls.  No synchronization
+             * is performed, so there is a slight chance that multiple calls to this
+             * method will not all return the same set.
+             */
+            public Set<K> keySet() {
+                Set<K> ks = keySet;
+                if (ks == null) { // 만약 초기화가 안되었다면 keySet 을 초기화 한다. (지연 초기화)
+                    ks = new AbstractSet<K>() {
+                        public Iterator<K> iterator() {
+                            return new Iterator<K>() {
+                                private Iterator<Entry<K,V>> i = entrySet().iterator();
+
+                                public boolean hasNext() {
+                                    return i.hasNext();
+                                }
+
+                                public K next() {
+                                    return i.next().getKey();
+                                }
+
+                                public void remove() {
+                                    i.remove();
+                                }
+                            };
+                        }
+
+                        public int size() {
+                            return AbstractMap.this.size();
+                        }
+
+                        public boolean isEmpty() {
+                            return AbstractMap.this.isEmpty();
+                        }
+
+                        public void clear() {
+                            AbstractMap.this.clear();
+                        }
+
+                        public boolean contains(Object k) {
+                            return AbstractMap.this.containsKey(k);
+                        }
+                    };
+                    keySet = ks;
+                }
+                return ks;
+            }
+
+    오토박싱을 잘못 사용하면 불필요한 객체가 생성된다.
+        : 오토박싱은 기본 타입과 그에 대응하는 박싱된 기본 타입의 구분을 흐려주지만, 완벽하지 않다.
+        : 박싱된 기본 타입보다는 "기본 타입" 을 사용하고, 의도치 않은 "박싱 객체가 생성되지 않도록 주의"하자.
+
+    ex) 오토 박싱때문에 수많은 객체가 생성된다.
+        stopwatch = Stopwatch.createStarted();
+        Long sum = 0L;
+        for (int i=0; i<Integer.MAX_VALUE; i++) {
+            sum += i;                               // 수 많은 i 가 boxing 되고 있다.
+        }
+        System.out.println(stopwatch.stop());       // 6 s
+
+        stopwatch = Stopwatch.createStarted();
+        long sum2 = 0L;
+        for (int i=0; i<Integer.MAX_VALUE; i++) {
+            sum2 += i;
+        }
+        System.out.println(stopwatch.stop());       //0.7 s
+
+
+    아이템 6 핵심 정리.
+        똑같은 기능을 하는 객체를 매번 생성하지 말고 재사용 하자.
+        생성 비용이 비싼 객체는 더더욱 재사용하자.
+        불변 객체는 재사용하기 안전하다.
+        어댑터를 통해 객체를 재사용하자.
+        하지만 이는 언제나 "똑같은 기능" 과 "불변식"을 지킨다는 한에서다.
+        방어적 복사를 해야하는 시점 ("클라이언트가 전달한 객체가 가변이라 해당 객체에 영향이 갈때") 와 객체를 재사용해야 하는 시점을 잘 구별하자.
+            => 방어적 복사를 통해 클래스를 불변으로 만들고, 해당 클래스를 재사용하자.

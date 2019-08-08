@@ -18,7 +18,7 @@ public abstract class Pizza {
         System.out.println(pizza);
     }
 
-    private enum Topping {HAM, MUSHROOM, ONION, PEPPER, SAUSAGE }
+    private enum Topping { HAM, MUSHROOM, ONION, PEPPER, SAUSAGE }
     final Set<Topping> toppings;
 
     static abstract class Builder<T extends Builder<T>> {

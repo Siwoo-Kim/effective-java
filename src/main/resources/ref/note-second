@@ -26,10 +26,11 @@
         반환될 객체의 특성을 쉽게 설명할 수 있다.
 
         ex)
-        public BigInteger(byte[] val)
-        public static BigInteger probablePrime(int bitLength, Random seed)
+            public BigInteger(byte[] val)
+            public static BigInteger probablePrime(int bitLength, Random seed)  //가독성이 좋다.
+
     2. Static Factory Method 은 호출될 때마다 인스턴스를 새로 생성하지 않아도 된다.
-        : 불변 클래스(아이템 17) 을 미리 만들어 놓고 캐싱하여 재사용하는 방법을 채용할 수 있다. (Flyweight Pattern)
+        : 불변 클래스(아이템 17) 을 미리 만들어 놓고 캐싱하여 재사용하는 방법을 채용할 수 있다. (Flyweight Pattern: 객체를 가볍게 하기 위한 목적의 패턴)
         : 해당 클래스를 인스턴스 통제(instance-controlled) 클래스로 만들 수 있다.
 
         @ToString
@@ -60,12 +61,13 @@
             :instance-controlled 클래스의 예로는 싱글턴(singleton) 혹은 "불변 값 클래스 (a == b 일때만 a.equal(b) 가 성립)", 열거 타입이 있다.
 
     3. 반환 타입의 하위 타입 객체를 반환할 수 있는 능력이 있다.
-        :해당 구현 클래스를 공개하지 않고도 부모 클래스에서 그 객체를 반환하도록 반환할 수 있다.
-        :이는 인터페이스를 정적 팩터리 메서드의 반환 타입으로 사용하는 인터페이스 기반 프레임워크에서 자주 사용된다.
+        :해당 구현 클래스(자식 객체)를 공개하지 않고도 부모 클래스에서 자식 객체를 반환하도록 반환할 수 있다.
+        :이는 인터페이스를 정적 팩터리 메서드의 반환 타입으로 사용하는 "인터페이스 기반 프레임워크"에서 자주 사용된다 (Collections).
+            :Collections 은 Collection 읜 동반 클래스로 Collection 의 정적 팩터리 메서드의 모음을 정의했다.
         :특정 인터페이스를 구현한 동반 클래스를 private 내부 클래스로 만든 이후 정적 팩토리 메서드로 반환하면
         "개념의 수" 가 줄어들어 클라이언트가 사용하기 편하다.
         :클라이언트는 "인터페이스" 만으로 다루므로 해당 클래스를 다루는 난이도가 낮춰진다.
-        :예로는 Collections 의 45 개 유틸리티 구현제가 있다.
+        :예로는 Collections 의 45 개 Collection 구현체가 있으며 그에 대한 정적 팩토리 메서드를 가진다.
 
         ex)
         static class Collections {
@@ -95,7 +97,7 @@
         }
 
     4. 입력 매개변수에 따라 매번 다른 클래스의 객체를 반환할 수 있다.
-        :3번의 기능을 더 추가한 예로써, 매개변수의 따라 서브 클래스의 "구현체" 를 판단한다.
+        :3번의 기능을 더 추가한 예로써, 매개변수의 따라 서브 클래스의 "구현체" 를 판단한다. (EnumSet 의 RegularEnumSet 과 JumboEnumSet)
         :인터페이스를 리턴하므로 클라이언트는 인터페이스에 기반에 따라 프로그래밍한다. 따라서 구현체를 다음 릴리즈에서
         교체하더라도 문제가 없다. (인터페이스 프로그래밍하라)
 
@@ -157,10 +159,10 @@
         }
 
     아이템 1 핵심 정리.
-        Static Factory Method 은 대부분 생성자보다 유리한 경우가 더 많으므로 이를 구현함을 항상 고려하자.
+        "Static Factory Method" 은 대부분 생성자보다 유리한 경우가 더 많으므로 이를 구현함을 항상 고려하자.
 
 아이템 2. 생성자에 선택적 매개변수가 많다면 빌더를 고려하라.
-    : 생성자와 Static Factory Method 은 선택적 매개변수가 많을 때 적절히 대응하기 힘들다.
+    : 생성자와 Static Factory Method 은 "선택적 매개변수"가 많을 때 적절히 대응하기 힘들다.
 
     @점층적 생성자 패턴(telescoping constructor pattern)
         : 생성자의 매개변수를 늘려가는 형태로 하위 생성자는 최상위 생성자를 호출할때까지 위임한다.
@@ -655,6 +657,7 @@
             }
 
             stopwatch = Stopwatch.createStarted();
+            stopwatch = Stopwatch.createStarted();
             for (int i=0; i<5000000; i++) {
                 RomanNumerals rn = new RomanNumerals("XL"); //6.562s 비싼 객체 매번 생성시
             }
@@ -770,3 +773,172 @@
         하지만 이는 언제나 "똑같은 기능" 과 "불변식"을 지킨다는 한에서다.
         방어적 복사를 해야하는 시점 ("클라이언트가 전달한 객체가 가변이라 해당 객체에 영향이 갈때") 와 객체를 재사용해야 하는 시점을 잘 구별하자.
             => 방어적 복사를 통해 클래스를 불변으로 만들고, 해당 클래스를 재사용하자.
+
+아이템 7. 다 쓴 객체 참조를 해제하라.
+    :자바는 가비지 컬렉터가 다 쓴 객체를 알아서 회수해간다.
+    :하지만 "메모리 누수의 발생"은 가능하다.
+
+    가비지 컬렉터라도 결국 '다 쓴 참조'를 회수하지 못한다.
+        :다 쓴 참조(obsolete reference) 란 앞으로 다시 쓰지 않을 참조를 뜻한다.
+        :다 쓴 참조는 가비지 컬렉터가 회수하지 못하므로 결국 OutOfMemoryError 예외가 던져질 수 있다.
+        :메모리 누수는 디버깅 하기가 아주 까다롭다.
+
+    ex) 객체를 계속 참조하므로 메모리 누수가 일어난다.
+        public class Stack<E> {
+            private E[] elements;
+            private int size;
+            public static final int DEFAULT_INITIAL_CAPACITY = 16;
+
+            @SuppressWarnings("unchecked")
+            public Stack() {
+                this.elements = (E[]) new Object[DEFAULT_INITIAL_CAPACITY];
+            }
+
+            public void push(E e) {
+                ensureCapacity();
+                elements[size++] = e;
+            }
+
+            public E pop() {
+                if (size == 0)
+                    throw new EmptyStackException();
+                return elements[--size];
+            }
+
+            /**
+             * 원소를 위한 공간을 최소 하나를 확보한다. {@code size == 0 ? 1 : 2 * size + 1}
+             * 배열 크기를 늘려야 할 때마다 대략 두 배씩 늘린다.
+             */
+            private void ensureCapacity() {
+                if (size == elements.length)
+                    elements = Arrays.copyOf(elements, (size << 1) + 1);
+            }
+
+            public static void main(String[] args) {
+                System.out.println(128 << 1);
+                System.out.println(50 << 1);
+                System.out.println(9 << 1);
+            }
+        }
+
+    가비지 컬렉터는 '객체 참조 하나만 회수하지 못하는 것이 아니다'.
+        :가비지 컬렉터가 특정 객체 참조를 회수하지 못한다면 그 객체 뿐 아니라, 객체가 참조하는 모든 객체를 회수하지 못한다.
+
+    다 쓴 참조(obsolete reference) 은 null 처리하라.
+        :다 쓴 참조를 null 처리하면 메모리 누수를 피할 수 있을 뿐 아니라 이미 다쓴 객체를 다시 사용하려면 NullPointException 이 일어난다. (분명 잘못된 일을 수행하였을 것이므로)
+
+        public E pop() {
+            if (size == 0)
+                throw new EmptyStackException();
+            E e = elements[--size];
+            elements[size] = null; //obsolete reference 의 null 처리
+            return e;
+        }
+
+    null 처리는 자기 메모리를 직접 관리할 때만 사용해라.
+        :null 처리는 자기 메모리를 직접 관리할 때만 사용해라.
+        :보통은 null 처리 대신 (아이템 57. 지역변수의 범위를 최소화하라).
+        :자기 메모리를 직접 관리하는 클래스 혹은 캐시를 사용하는 클래스라면 메모리 누수를 항상 주의해라.
+        :WeakHashMap 클래스, LinkedHashMap.removeEldestEntry 와 ScheduledThreadPoolExecutor 로 자기 메모리를 관리하는 클래스는 엔트리 청소를 해주어라.
+        :WeakReference 로 저장하면 가비지 컬렉터는 즉시 수거해간다.
+
+    @WeakHashMap
+        :키의 참조가 살아있는 Map 에 존재하더라도 외부에서 키의 참조가 없다면 해당 Key 은 GC에 의해 메모리가 회수된다.
+        :캐쉬 외부에서 키를 참조하는 동안만 엔트리가 살아 있는 캐시가 필요한 상황에서 사용하며 메모리 누수를 방지한다.
+
+        /**
+         * Hash table based implementation of the <tt>Map</tt> interface, with
+         * <em>weak keys</em>.
+         * An entry in a <tt>WeakHashMap</tt> will automatically be removed when
+         * its key is no longer in ordinary use.  More precisely, the presence of a
+         * mapping for a given key will not prevent the key from being discarded by the
+         * garbage collector, that is, made finalizable, finalized, and then reclaimed.
+         * When a key has been discarded its entry is effectively removed from the map,
+         * so this class behaves somewhat differently from other <tt>Map</tt>
+         * implementations.
+         *
+        public class WeakHashMap<K,V> extends AbstractMap<K,V> implements Map<K,V> {
+
+
+    @LinkedHashMap 의 removeEldestEntry.
+        :가장 오래된 원소를 삭제한다. 상속하여 사용하라.
+    ex)
+        Map<Integer, Integer> map = new Cache<>();
+        map.put(1, 1);
+        map.put(2, 2);
+        map.put(3, 1);
+        map.put(4, 3);
+        System.out.println(map.get(1)); //null
+
+        class Cache<K, V> extends LinkedHashMap<K, V> {
+            private static final int MAX_ENTRIES = 3;
+
+            protected boolean removeEldestEntry(Map.Entry eldest) {
+                return size() > MAX_ENTRIES;
+            }
+        }
+
+        void afterNodeInsertion(boolean evict) { // possibly remove eldest
+            LinkedHashMap.Entry<K,V> first;
+            if (evict && (first = head) != null && removeEldestEntry(first)) {
+                K key = first.key;
+                removeNode(hash(key), key, null, false, true);
+            }
+        }
+
+        /**
+         * Returns <tt>true</tt> if this map should remove its eldest entry.
+         * This method is invoked by <tt>put</tt> and <tt>putAll</tt> after
+         * inserting a new entry into the map.  It provides the implementor
+         * with the opportunity to remove the eldest entry each time a new one
+         * is added.  This is useful if the map represents a cache: it allows
+         * the map to reduce memory consumption by deleting stale entries.
+         *
+         * @param    eldest The least recently inserted entry in the map, or if
+         *           this is an access-ordered map, the least recently accessed
+         *           entry.  This is the entry that will be removed it this
+         *           method returns <tt>true</tt>.  If the map was empty prior
+         *           to the <tt>put</tt> or <tt>putAll</tt> invocation resulting
+         *           in this invocation, this will be the entry that was just
+         *           inserted; in other words, if the map contains a single
+         *           entry, the eldest entry is also the newest.
+         * @return   <tt>true</tt> if the eldest entry should be removed
+         *           from the map; <tt>false</tt> if it should be retained.
+         */
+        protected boolean removeEldestEntry(Map.Entry<K,V> eldest) {
+            return false;
+        }
+
+    @WeakReference
+        :WeakReference 을 통한 약한 참조 객체는 참조하는 객체가 GC 로부터 회수하는 것을 막지 않는다.
+
+
+        /**
+         * Weak reference objects, which do not prevent their referents from being
+         * made finalizable, finalized, and then reclaimed.  Weak references are most
+         * often used to implement canonicalizing mappings.
+         *
+         * <p> Suppose that the garbage collector determines at a certain point in time
+         * that an object is <a href="package-summary.html#reachability">weakly
+         * reachable</a>.  At that time it will atomically clear all weak references to
+         * that object and all weak references to any other weakly-reachable objects
+         * from which that object is reachable through a chain of strong and soft
+         * references.  At the same time it will declare all of the formerly
+         * weakly-reachable objects to be finalizable.  At the same time or at some
+         * later time it will enqueue those newly-cleared weak references that are
+         * registered with reference queues.
+         *
+         * @author   Mark Reinhold
+         * @since    1.2
+         */
+
+        public class WeakReference<T> extends Reference<T> {
+
+        WeakReference<Student> ref = new WeakReference<Student>(new Student("siwoo")); //약한 참조 객체.
+        //Student s = ref.get();    //주석을 제거하면 참조를 해제할 수 없으므로 영원히 loop 한다.
+        while (ref.get() != null) {
+            System.gc();    //하지마라!
+        }
+
+        System.out.println(ref.get() == null);
+

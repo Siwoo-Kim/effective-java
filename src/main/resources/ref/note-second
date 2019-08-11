@@ -942,3 +942,207 @@
 
         System.out.println(ref.get() == null);
 
+    핵심정리 7. 자기 메모리를 관리하는 클래스에선 null 처리를 확실히 하고,
+    WeakHashMap, WeakReference, ScheduledThreadPoolExecutor, LinkedHashMap 등의 메모리 누수 예방법을 익혀두자.
+
+아이템 8. finalizer 와 cleaner 사용을 피하라.
+    :자바는 finalizer 와 cleaner 은 객체 소멸자를 제공한다.
+    :접근할 수 없게 된 객체를 회수하는 역할은 가비지 컬렉터가 담당한다.
+    :이 finalizer 와 cleaner 은 해당 객체의 리소스(파일, 스레드) 등의 시스템이 회수해야할 리소스를 종료하기 위한 목적을 가진다. (하지만 사용하지 마라)
+
+    finalizer 와 cleaner 은 예측 불가하고, 위험하다.
+        :finalizer 와 cleaner 는 즉시 수행된다는 보장이 없다.
+        :finalizer 스레드는 다른 스레드보다 우선 순위가 낮아 객체 수천 개가 finalizer 대기열에 쌓일 수 있다.
+
+    System.gc 나 System.runFinalization 메서드을 믿지 마라.
+        :finalizer 와 cleaner 가 실행될 가능성을 높여줄 수 있으나 보장해주지 않는다.
+        :(WeakReference 혹은 WeakHashMap 을 연습할때나 사용하자..)
+
+        /**
+         * Runs the garbage collector.
+         * <p>
+         * Calling the <code>gc</code> method suggests that the Java Virtual
+         * Machine expend effort toward recycling unused objects in order to
+         * make the memory they currently occupy available for quick reuse.
+         * When control returns from the method call, the Java Virtual
+         * Machine has made a best effort to reclaim space from all discarded
+         * objects.
+         * <p>
+         * The call <code>System.gc()</code> is effectively equivalent to the
+         * call:
+         * <blockquote><pre>
+         * Runtime.getRuntime().gc()
+         * </pre></blockquote>
+         *
+         * @see     java.lang.Runtime#gc()
+         */
+        public static void gc() {
+            Runtime.getRuntime().gc();
+        }
+
+        /**
+         * Runs the finalization methods of any objects pending finalization.
+         * <p>
+         * Calling this method suggests that the Java Virtual Machine expend
+         * effort toward running the <code>finalize</code> methods of objects
+         * that have been found to be discarded but whose <code>finalize</code>
+         * methods have not yet been run. When control returns from the
+         * method call, the Java Virtual Machine has made a best effort to
+         * complete all outstanding finalizations.
+         * <p>
+         * The call <code>System.runFinalization()</code> is effectively
+         * equivalent to the call:
+         * <blockquote><pre>
+         * Runtime.getRuntime().runFinalization()
+         * </pre></blockquote>
+         *
+         * @see     java.lang.Runtime#runFinalization()
+         */
+        public static void runFinalization() {
+            Runtime.getRuntime().runFinalization();
+        }
+
+     finalizer 와 cleaner 은 심각한 성능 문제도 동반한다.
+        :finalizer 와 cleaner 은 가비지 컬렉터의 효율성을 크게 떨어뜨린다.
+
+        @finalizer 공격.
+            :생성자나 직렬화 과정(readObject, readResolve) 에서 예외가 발생하면, 이 생성되다 만 객체에서
+            악의적인 자식 클래스의 finalizer 가 수행.
+            :악의전인 finalizer 메서드는 정적 필드에 자신의 참조를 할당하여 가비지 컬렉터가 수집하지 못하게 막을 수 있다.
+            :반대로 객체를 직렬화시 클래스를 final 로 선언하거나 finalize 메서드를 final 로 선언하라.
+
+        ex)
+            class Name implements Serializable {
+
+                private final String firstName;
+
+                private final String lastName;
+
+                public Name(String firstName, String lastName) {
+                    this.firstName = firstName;
+                    this.lastName = lastName;
+                }
+            }
+
+            class Attacker extends Name {
+                static final List<Attacker> instances = new ArrayList<>();
+
+                public Attacker(String firstName, String lastName) {
+                    super(firstName, lastName);
+                }
+
+                private void readObject(ObjectInputStream s) throws IOException, ClassNotFoundException {
+                    s.defaultReadObject();
+                    throw new IllegalArgumentException();
+                }
+
+                @Override
+                protected void finalize() throws Throwable {
+                    instances.add(this); //to prevent gc to collect this instance.
+                }
+            }
+
+    finalizer 와 cleaner 의 대안.
+        :클래스의 종료해야할 자원(파일, 스레드) 등을 담고 있는 클래스는 AutoCloseable 을 구현하고,
+        close 메서드를 호출하라. (try-with-resources) 와 함께.
+        :다른 메서드는 이 필드를 검사해 필드의 객체가 닫힌 후 불렸다면 IllegalStateException 을 던져라.
+
+
+    ex) 회수해야할 자원이 있다면 AutoCloseable 을 구현하라.
+
+        class Http implements AutoCloseable {
+            private ObjectInputStream in;
+            private HttpContent content;
+
+            public Http(HttpContent content, ObjectInputStream in) {
+                this.in = in;
+                this.content = content;
+            }
+
+            public static Http of(ObjectInputStream in) throws IOException, ClassNotFoundException {
+                return new Http((HttpContent) Objects.requireNonNull(in.readObject()), in);
+            }
+
+            String content() {
+                return content.content;
+            }
+
+            String method() {
+                return content.method;
+            }
+
+            @Override
+            public void close() {
+                if (Objects.nonNull(in))
+                    try {
+                        in.close();
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+            }
+
+    그렇다면 finalizer 와 cleaner 은 언제 쓰는가?
+        : 자원의 소유자가 close 메서드를 호출하지 않았을 경우의 안정만 역할로 사용.
+
+    ex) FileOutputStream 의 안정망 finalizer
+
+       /**
+         * Cleans up the connection to the file, and ensures that the
+         * <code>close</code> method of this file output stream is
+         * called when there are no more references to this stream.
+         *
+         * @exception  IOException  if an I/O error occurs.
+         * @see        java.io.FileInputStream#close()
+         */
+        protected void finalize() throws IOException {
+            if (fd != null) {
+                if (fd == FileDescriptor.out || fd == FileDescriptor.err) {
+                    flush();
+                } else {
+                    /* if fd is shared, the references in FileDescriptor
+                     * will ensure that finalizer is only called when
+                     * safe to do so. All references using the fd have
+                     * become unreachable. We can call close()
+                     */
+                    close();
+                }
+            }
+        }
+    ex)
+        public class Room implements AutoCloseable {
+            @Override
+            public void close() {
+                state.run();
+            }
+
+            //절대 Room 을 참조하지 말 것! 순환 참조로 가비지 컬렉터 대상에서 제외!
+            private static class State implements Runnable {
+                int numJunks;
+
+                State(int numJunks) {
+                    this.numJunks = numJunks;
+                }
+
+                @Override
+                public void run() {
+                    System.out.println("방 청소");
+                    numJunks = 0;
+                }
+            }
+
+            private final State state;
+
+            public Room(int numJunks) {
+                state = new State(numJunks);
+            }
+        }
+
+        class Adult {
+            public static void main(String[] args) {
+                try (Room myRoom = new Room(7)) {
+                    System.out.println("안녕~");
+                }
+            }
+        }
+
+    cleaner (자바 8 이전은 finalizer) 은 안정망 역할이나 중요하지 않은 네이티브 자원 회수용으로만 사용하자.

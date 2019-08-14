@@ -5426,3 +5426,235 @@ Serializable 을 구현할지는 신중히 결정하라.
         :기본 버전 클래스와 호환성을 끊고 싶다면 단순히 직렬 버전 UID 값을 바꿔줘라.
         :이렇게 되면 기존 버전의 인스턴스를 역질렬화할때 InvalidClassException 이 던져진다.
         :반대로 구버전으로 직렬화된 인스턴스들과의 호환성을 끊을려는 경우를 제외하곤 직렬 버전 UID 을 절대 수정하지 마라.
+
+readObject 메서드는 방어적으로 작성하라.
+    :직렬화시 객체의 "불변식"을 보장하기 위해선 생성자와 똑같은 수준으로 주의를 기울여야 한다.
+    :readObject 메서드에서는 인수가 유효한지 검사해야 한다 (아이템 49).
+    :readObject 매개변수를 방어적으로 복사해야 한다 (아이템 50).
+
+    @readObject
+        : 직렬화시 사용되며 기능은 매개변수로 바이트 스트림으로 받는 생성자와 같다.
+        : readObject 메서드는 defaultReadObject 을 호추랗ㄴ 다음 역질렬화된 객체가 유효한지 검사해야 한다.
+        : 유효성 검사에 실패하면 InvalidObjectException 을 던져야 한다.
+
+        @defaultReadObject
+            :readObject 에서는 defaultReadObject 을 호출해야만 transient 가 아닌 필드을 바이트에서 읽어온다.
+            /**
+             * Read the non-static and non-transient fields of the current class from
+             * this stream.  This may only be called from the readObject method of the
+             * class being deserialized. It will throw the NotActiveException if it is
+             * called otherwise.
+             *
+             * @throws  ClassNotFoundException if the class of a serialized object
+             *          could not be found.
+             * @throws  IOException if an I/O error occurs.
+             * @throws  NotActiveException if the stream is not currently reading
+             *          objects.
+             */
+            public void defaultReadObject()
+                throws IOException, ClassNotFoundException
+            {
+                SerialCallbackContext ctx = curContext;
+                if (ctx == null) {
+                    throw new NotActiveException("not in call to readObject");
+                }
+                Object curObj = ctx.getObj();
+                ObjectStreamClass curDesc = ctx.getDesc();
+                bin.setBlockDataMode(false);
+                defaultReadFields(curObj, curDesc); //해당 객체의 필드를 읽어온다.
+                bin.setBlockDataMode(true);
+                if (!curDesc.hasWriteObjectData()) {
+                    defaultDataEnd = true;
+                }
+                ClassNotFoundException ex = handles.lookupException(passHandle);
+                if (ex != null) {
+                    throw ex;
+                }
+            }
+
+        public class Period implements Serializable {
+            private final Date start;
+            private final Date end;
+
+            /**
+             * @param start 시작 시각.
+             * @param end 종료 시각; 시작 시간보다 뒤여야 한다. {@code end.compareTo(start) > 0}
+             * @throws IllegalArgumentException 시작 시각이 종료 시각보다 늦을 때 발생한다.
+             * @throws NullPointerException start 나 end 가 null이면 발생.
+             */
+            public Period(Date start, Date end) {
+                this.start = new Date(start.getTime());
+                this.end = new Date(end.getTime());
+                if (start.compareTo(end) > 0)
+                    throw new IllegalStateException(start + "가 " + end + " 보다 늦다.");
+            }
+
+            public Date getStart() {
+                return new Date(start.getTime());
+            }
+
+            public Date getEnd() {
+                return new Date(end.getTime());
+            }
+
+            @Override
+            public String toString() {
+                return start + " - " + end;
+            }
+        }
+
+        class BogusPeriod {
+            // Byte stream could not have come from real Period instance!
+            private static final byte[] serializedForm = new byte[] { (byte) 0xac,
+                    (byte) 0xed, 0x00, 0x05, 0x73, 0x72, 0x00, 0x06, 0x50, 0x65, 0x72,
+                    0x69, 0x6f, 0x64, 0x40, 0x7e, (byte) 0xf8, 0x2b, 0x4f, 0x46,
+                    (byte) 0xc0, (byte) 0xf4, 0x02, 0x00, 0x02, 0x4c, 0x00, 0x03, 0x65,
+                    0x6e, 0x64, 0x74, 0x00, 0x10, 0x4c, 0x6a, 0x61, 0x76, 0x61, 0x2f,
+                    0x75, 0x74, 0x69, 0x6c, 0x2f, 0x44, 0x61, 0x74, 0x65, 0x3b, 0x4c,
+                    0x00, 0x05, 0x73, 0x74, 0x61, 0x72, 0x74, 0x71, 0x00, 0x7e, 0x00,
+                    0x01, 0x78, 0x70, 0x73, 0x72, 0x00, 0x0e, 0x6a, 0x61, 0x76, 0x61,
+                    0x2e, 0x75, 0x74, 0x69, 0x6c, 0x2e, 0x44, 0x61, 0x74, 0x65, 0x68,
+                    0x6a, (byte) 0x81, 0x01, 0x4b, 0x59, 0x74, 0x19, 0x03, 0x00, 0x00,
+                    0x78, 0x70, 0x77, 0x08, 0x00, 0x00, 0x00, 0x66, (byte) 0xdf, 0x6e,
+                    0x1e, 0x00, 0x78, 0x73, 0x71, 0x00, 0x7e, 0x00, 0x03, 0x77, 0x08,
+                    0x00, 0x00, 0x00, (byte) 0xd5, 0x17, 0x69, 0x22, 0x00, 0x78 };
+
+            public static void main(String[] args) {
+                Period p = deserialize(serializedForm);
+                System.out.println(p);  //잘못된 바이트를 직렬화하여 객체의 불변식이 깨진다.
+            }
+
+            private static Period deserialize(byte[] sf) {
+                try (ObjectInputStream in = new ObjectInputStream(new ByteArrayInputStream(sf))) {
+                    return (Period) in.readObject();
+                } catch (IOException | ClassNotFoundException e) {
+                    throw new IllegalStateException(e);
+                }
+            }
+        }
+
+    객체 직렬화 스트림 끝에 추가된 '악의적 객체 참조'를 주의하라.
+        :해당 인스턴스를 직렬화한 바이트의 끝에 필드 참조 바이트를 추가하면 가변 인스턴스를 만들 수 있으니 주의해야 한다.
+        :객체를 역직렬화할 때는 클라이언트가 소유해서는 안 되는 객체 참조를 갖는 필드를 반드시 방어적으로 복사하라. (클라이언트에서 전달 받는 혹은 전달하는 객체를 방어적 복사하라)
+
+        public static void main(String[] args) throws IOException, ClassNotFoundException {
+            try (ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                 ObjectOutputStream out = new ObjectOutputStream(baos)) {
+                MutablePeriod p = new MutablePeriod(new Date(), new Date());
+                out.writeObject(p);
+                byte[] ref = { 0x71, 0, 0x7e, 0, 5 }; //#5 start 참조
+                baos.write(ref);
+                ref[4] = 4; //#4 end 참조
+                baos.write(ref);
+                try (ObjectInputStream in = new ObjectInputStream(new ByteArrayInputStream(baos.toByteArray()))) {
+                    MutablePeriod p2 = (MutablePeriod) in.readObject();
+                    Date s = (Date) in.readObject();
+                    Date e = (Date) in.readObject();
+                    e.setYear(69);
+                    System.out.println(p2);
+                }
+            }
+        }
+
+    핵심 정리.
+        :readObject 메서드를 작성할 때는 언제나 public 생성자를 작성하는 자세로 임하라.
+        :private 이어야 하는 객체 참조 필드는 각 필드가 가리키는 객체를 방어적으로 복사하라.
+        :모든 불변식의 유효성을 검사하여 어긋나면 InvalidObjectException 을 던져라.
+
+직렬화된 인스턴스 대신 직렬화 프록시 사용하라.
+    :직렬화를 위해 Serializable 을 구현한 이상 생성자 이외의 방법으로 인스턴스를 생성할 수 있게 됨으로써 버그와 보안 문제 문제가 생길 가능성이 생긴다.
+    :직렬화 프록시 패턴(serialization proxy pattern) 을 이용하면 이 위험을 크게 줄일 수 있다.
+
+    @직렬화 프록시 패턴
+        :논리적 상태를 표현하는 private static 중첩 클래스(프록시)를 정의.
+        :이 클래스의 생성자는 단순히 인수로 넘어온 인스턴스의 데이터를 복사하고 바깥 클래스와 프록시 모두 Serializable 을 구현한다.
+
+        public class ProxyPeriod {
+            private final Date start;
+            private final Date end;
+
+            public ProxyPeriod(Date start, Date end) {
+                this.start = new Date(start.getTime());
+                this.end = new Date(end.getTime());
+                checkArgument(this.start.compareTo(this.end) <= 0);
+            }
+
+            //직렬화 프록시 패턴
+            private static class SerializationProxy implements Serializable {
+                private static final long serialVersionUID = 1L;
+                private final Date start;
+                private final Date end;
+
+                public SerializationProxy(ProxyPeriod p) {
+                    this.start = p.start;
+                    this.end = p.end;
+                }
+
+                // writeReplace 으로 직렬화된 프록시를 역직렬화할때 다시 바깥 인스턴스를 생성하여 리턴한다.
+                private Object readResolve() {
+                    return new ProxyPeriod(start, end);
+                }
+            }
+
+            // 직렬화 프록시 패턴용 writeReplace 메서드. ProxyPeriod 을 직렬화시 바깥 클래스의 인스턴스 대신 내부 프록시 인스턴스를 반환하게 한다.
+            private Object writeReplace() {
+                return new SerializationProxy(this);
+            }
+
+            private void readObject(ObjectInputStream in) throws InvalidObjectException {
+                throw new InvalidObjectException("프록시가 필요합니다.");
+            }
+        }
+
+    직렬화 프록시 패턴은 해당 클래스의 불변식을 그대로 사용할 수 있고 위험성을 줄인다.
+        : readObject 을 사용하지 않으므로 필드를 final "불변식"로 선언할 수 있어 불변식을 충족한다.
+        : 역직렬화시 바깥 클래스의 생성자를 그대로 사용하므로 따로 유효성 검사 코드를 작성하지 않아도 된다.
+
+    EnumSet 또한 직렬화 프록시 패턴을 사용했다!
+        /**
+         * This class is used to serialize all EnumSet instances, regardless of
+         * implementation type.  It captures their "logical contents" and they
+         * are reconstructed using public static factories.  This is necessary
+         * to ensure that the existence of a particular implementation type is
+         * an implementation detail.
+         *
+         * @serial include
+         */
+        private static class SerializationProxy <E extends Enum<E>>
+            implements java.io.Serializable
+        {
+            /**
+             * The element type of this enum set.
+             *
+             * @serial
+             */
+            private final Class<E> elementType;
+
+            /**
+             * The elements contained in this enum set.
+             *
+             * @serial
+             */
+            private final Enum<?>[] elements;
+
+            SerializationProxy(EnumSet<E> set) {
+                elementType = set.elementType;
+                elements = set.toArray(ZERO_LENGTH_ENUM_ARRAY);
+            }
+
+            // instead of cast to E, we should perhaps use elementType.cast()
+            // to avoid injection of forged stream, but it will slow the implementation
+            @SuppressWarnings("unchecked")
+            private Object readResolve() {
+                EnumSet<E> result = EnumSet.noneOf(elementType);
+                for (Enum<?> e : elements)
+                    result.add((E)e);
+                return result;
+            }
+
+            private static final long serialVersionUID = 362491234563181265L;
+        }
+
+        Object writeReplace() {
+            return new SerializationProxy<>(this);
+        }

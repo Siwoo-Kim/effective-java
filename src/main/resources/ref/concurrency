@@ -1,0 +1,258 @@
+
+Concurrency/Threads
+    :Concurrency refers to an application doing more than one thing at a time.
+    :In precisely, Concurrency means that one task doesn't have to complete before another can start.
+    :동시성은 앱이 한 순간에 하나 이상의 일을 처리함을 의미한다.
+    :정확하게 말해서, 동시성은 다른 작업을 시작하기 전에 한 작업을 완료할 필요가 없다는 것을 의미.
+    (정확히는 한 순간에 하나 이상의 일을 처리하는 것은 아니다. 내부적으론 한 순간씩 task 을 돌아가며 조금씩 처리하며 이를 반복한다.)
+
+    왜 쓰레드를 이용해야 되는가?
+        :One thread executes in a linear fashion. The thread won't be able to do anything else while
+        it's processing the before code.
+        :Instead of typing up the thread, the developer can create another thread executes the long-running task. (parallel processing).
+        :하나의 쓰레드의 흐름은 선형적(순차적) 이다. 코드를 하나씩 순차적으로 처리한다.
+        :코드를 나눈 이후, 여러 쓰레드를 생성하여 분산 처리를 실행한다면 해당 코드는 병렬 처리되고 속도가 개선된다 (이전 처리 결과를 기다릴 필요가 없으므로).
+
+    @process
+        :process is a unit of execution that has its own memory space(heap).
+        :Each instance of JVM runs as a process.
+        :Other applications cannot access the heap that belongs to an application. (Heap cannot be shared)
+        프로세스는 heap 라는 메모리 공간을 가지며, JVM 은 하나의 process 로써 구동된다.
+        앱은 하나의 Heap 을 가지며, 이 힙은 다른 앱과 공유하지 못한다.
+
+    @thread
+        :thread is a unit of execution 'within a process'.
+        :Each process can have multiple threads. (JVM must have at least one thread = main thread).
+        :Every thread shares the process's memory(heap) and files.
+        쓰레드는 프로세스 안에서의 하나의 흐름 단위이다.
+        각 프로세스들은 여러 쓰레드들을 가질 수 있다. (Main 스레드는 JVM 이 자동으로 생성.)
+        프로세스 내의 쓰레드들은 그 프로세스의 Heap 과 파일을 공유한다.
+
+    @thread stack
+        :Each thread has a thread stack which is the memory that thread can access.
+        :각 쓰레드는 자신만이 접근 가능한 쓰레드 스택이란 메모리 공간을 가진다.
+
+    Process (Heap:sharable)  (OtoM->) Thread (Stack:unsharable)
+
+    Thread 구현하기.
+        :There are two ways to create a new thread of execution. One is to declare a class to be a subclass of Thread.
+        This subclass should override the <code>run</code> method of class <code>Thread</code>
+
+        1. Thread 상속하여 구현.
+            :Thread 을 상속하여 run 메서드를 구현.
+            :run 메서드는 실행할 코드 로직을 정의한다.
+        /**
+         * If this thread was constructed using a separate
+         * <code>Runnable</code> run object, then that
+         * <code>Runnable</code> object's <code>run</code> method is called;
+         * otherwise, this method does nothing and returns.
+         * <p>
+         * Subclasses of <code>Thread</code> should override this method.
+         *
+         * @see     #start()
+         * @see     #stop()
+         * @see     #Thread(ThreadGroup, Runnable, String)
+         */
+        @Override
+        public void run() {
+            if (target != null) {
+                target.run();
+            }
+        }
+
+        2. Runnable 인터페이스을 구현.
+            :Runnable 을 구현하여 Thread 생성자에 전달.
+            :Runnable 의 run 메서드는 실행할 코드 로직을 정의한다.
+
+        /**
+         * The <code>Runnable</code> interface should be implemented by any
+         * class whose instances are intended to be executed by a thread. The
+         * class must define a method of no arguments called <code>run</code>.
+        */
+        @FunctionalInterface
+        public interface Runnable {
+            /**
+             * When an object implementing interface <code>Runnable</code> is used
+             * to create a thread, starting the thread causes the object's
+             * <code>run</code> method to be called in that separately executing
+             * thread.
+             *
+             * @see     java.lang.Thread#run()
+             */
+            public abstract void run();
+        }
+
+    Thread 실행하기.
+        :구현한 Thread 의 start 메서드 호출.
+        :이미 쓰레드가 실행중인데 start 을 호출되면 IllegalThreadStateException 발생.
+        :하나의 쓰레드를 두번 이상으로 호출하면 예외 발생.
+
+        @자주하는 실수 run 과 start.
+            :Thread 의 run 을 실행하면 다른 쓰레드가 생성되어 실행되는 것이 아니라 호출한 쓰레드에서
+            실행 로직인 "run" 이 호출된다.
+            :우리가 원하는 것은 실행 로직인 "run" 이 다른 쓰레드에서 시작하여 "병렬 처리"가 되는 것이다.
+            :그러기 위해선 반드시 Thread.start 을 호출해야 한다.
+
+        /**
+         * Causes this thread to begin execution; the Java Virtual Machine
+         * calls the <code>run</code> method of this thread.
+         * <p>
+         * The result is that two threads are running concurrently: the
+         * current thread (which returns from the call to the
+         * <code>start</code> method) and the other thread (which executes its
+         * <code>run</code> method).
+         * <p>
+         * It is never legal to start a thread more than once.
+         * In particular, a thread may not be restarted once it has completed
+         * execution.
+         *
+         * @exception  IllegalThreadStateException  if the thread was already
+         *               started.
+         * @see        #run()
+         * @see        #stop()
+         */
+        public synchronized void start() {
+            /**
+             * A zero status value corresponds to state "NEW".
+             */
+            if (threadStatus != 0)
+                throw new IllegalThreadStateException();
+
+            group.add(this);
+            boolean started = false;
+            try {
+                start0();
+                started = true;
+            } finally {
+                try {
+                    if (!started)
+                        group.threadStartFailed(this);
+                } catch (Throwable ignore) { }
+            }
+        }
+
+    쓰레드 재우기.
+        :"실행중인 현재 쓰레드(current thread)"를 재운다.
+        :Thread.sleep 혹은 TimeUnit.sleep.
+        :다른 쓰레드가 잠자는 쓰레드를 interrupt 하면 InterruptedException 이 발생.
+
+        /**
+         * Causes the currently executing thread to sleep (temporarily cease
+         * execution) for the specified number of milliseconds, subject to
+         * the precision and accuracy of system timers and schedulers. The thread
+         * does not lose ownership of any monitors.
+         *
+         * @param  millis
+         *         the length of time to sleep in milliseconds
+         *
+         * @throws  IllegalArgumentException
+         *          if the value of {@code millis} is negative
+         *
+         * @throws  InterruptedException
+         *          if any thread has interrupted the current thread. The
+         *          <i>interrupted status</i> of the current thread is
+         *          cleared when this exception is thrown.
+         */
+        public static native void sleep(long millis) throws InterruptedException;
+
+        @TimeUnit.SECONDS.sleep
+        /**
+         * Performs a {@link Thread#sleep(long, int) Thread.sleep} using
+         * this time unit.
+         * This is a convenience method that converts time arguments into the
+         * form required by the {@code Thread.sleep} method.
+         *
+         * @param timeout the minimum time to sleep. If less than
+         * or equal to zero, do not sleep at all.
+         * @throws InterruptedException if interrupted while sleeping
+         */
+        public void sleep(long timeout) throws InterruptedException {
+            if (timeout > 0) {
+                long ms = toMillis(timeout);
+                int ns = excessNanos(timeout, ms);
+                Thread.sleep(ms, ns);
+            }
+        }
+
+    잠자는 쓰레드 깨우기.
+        :interrupt 는 참조를 통해 "참조하는 쓰레드"를 깨운다.
+        :잠자는 쓰레드의 참조를 가지고 있는 다른 쓰레드에서 해당 참조를 통해 interrupt 을 호출한다.
+        :다른 쓰레드에 의해 interrupt 가 호출되면 잠자는 쓰레드에 InterruptedException 이 발생.
+
+        자신이 interrupted 된지를 아는 2가지 방법.
+            1. Catch InterruptedException
+            2. Thread.isInterrupted
+
+         /**
+         * Interrupts this thread.
+         *
+         * <p> If this thread is blocked in an invocation of the {@link
+         * Object#wait() wait()} methods of the {@link Object}
+         * class, or of the {@link #join()} methods of this class, then its interrupt status will be cleared and it
+         * will receive an {@link InterruptedException}.
+         *
+         * <p> If none of the previous conditions hold then this thread's interrupt
+         * status will be set. </p>
+         *
+         * <p> Interrupting a thread that is not alive need not have any effect.
+         *
+         * @throws  SecurityException
+         *          if the current thread cannot modify this thread
+         *
+         * @revised 6.0
+         * @spec JSR-51
+         */
+        public void interrupt() {
+            if (this != Thread.currentThread())
+                checkAccess();
+
+            synchronized (blockerLock) {
+                Interruptible b = blocker;
+                if (b != null) {
+                    interrupt0();           // Just to set the interrupt flag
+                    b.interrupt(this);
+                    return;
+                }
+            }
+            interrupt0();
+        }
+
+        /**
+         * Tests whether this thread has been interrupted.  The <i>interrupted
+         * status</i> of the thread is unaffected by this method.
+         *
+         * <p>A thread interruption ignored because a thread was not alive
+         * at the time of the interrupt will be reflected by this method
+         * returning false.
+         *
+         * @return  <code>true</code> if this thread has been interrupted;
+         *          <code>false</code> otherwise.
+         * @see     #interrupted()
+         * @revised 6.0
+         */
+        public boolean isInterrupted() {
+            return isInterrupted(false);
+        }
+
+        쓰레드 동기화 시키기.
+            :join 현재 쓰레드가 "참조하는 쓰레드"가 끝나기를 기다린다.
+            :"참조하는 쓰레드 가 끝난다는 것"은 참조하는 쓰레드의 "run 메서드"가 끝날 수도, 아니면 "interrupt" 된 경우 모두이다.
+
+            /**
+             * Waits for this thread to die.
+             *
+             * <p> An invocation of this method behaves in exactly the same
+             * way as the invocation
+             *
+             * <blockquote>
+             * {@linkplain #join(long) join}{@code (0)}
+             * </blockquote>
+             *
+             * @throws  InterruptedException
+             *          if any thread has interrupted the current thread. The
+             *          <i>interrupted status</i> of the current thread is
+             *          cleared when this exception is thrown.
+             */
+            public final void join() throws InterruptedException {
+                join(0);
+            }

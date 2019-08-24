@@ -1,7 +1,12 @@
 package com.siwoo.datastructure;
 
+import javafx.embed.swt.SWTFXUtils;
+
 import java.util.Arrays;
 import java.util.concurrent.ThreadLocalRandom;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.registerCustomDateFormat;
 
 public class SortAlgorithm {
 
@@ -60,10 +65,13 @@ public class SortAlgorithm {
     }
 
     public static void main(String[] args) {
-        Integer[] origin = create();
-        Sort<Integer> sort = new BubbleSort<>();
-        sort.sort(origin);
-        System.out.println(Arrays.toString(origin));
+        for (int i=0; i<5; i++) {
+            Integer[] origin = create();
+            Sort<Integer> sort = new InsertionSort<>();
+            sort.sort(origin);
+            System.out.println(Arrays.toString(origin));
+            assertThat(origin).isSorted();
+        }
     }
 
     private static Integer[] create() {
@@ -73,6 +81,62 @@ public class SortAlgorithm {
             array[i] = random.nextInt(20);
         }
         return array;
+    }
 
+    static class SelectionSort<E extends Comparable<E>> implements Sort<E> {
+
+        public void sortRecur(E[] array, int sorted) {
+            //base case: all elements are in sorted boundary
+            if (sorted == 0) return;
+            int largest = 0;
+            for (int i=1; i<sorted; i++) {
+                // 가장 큰 요소를 갱신한다.
+                if (array[i].compareTo(array[largest]) > 0)
+                    largest = i;
+            }
+            swap(array, largest, sorted-1);
+            sortRecur(array, sorted-1);
+        }
+
+        @Override
+        public void sort(E[] array) {
+//            for (int unsorted=array.length-1; unsorted>0; unsorted--) {
+//                int largest = 0;
+//                for (int i=1; i<=unsorted; i++) {
+//                    if (array[i].compareTo(array[largest]) > 0)
+//                        largest=i;
+//                }
+//                swap(array, largest, unsorted);
+//            }
+            sortRecur(array, array.length);
+        }
+    }
+
+    static class InsertionSort<E extends Comparable<E>> implements Sort<E> {
+
+        @Override
+        public void sort(E[] array) {
+//            final int N = array.length;
+//            for (int sorted=1; sorted<N; sorted++) {
+//                E el = array[sorted]; int i=sorted;
+//                while (i > 0 && array[i-1].compareTo(el) > 0) {
+//                    array[i] = array[i-1];
+//                    i--;
+//                }
+//                array[i] = el;
+//            }
+            sortRecur(array, 1);
+        }
+
+        private void sortRecur(E[] array, int sorted) {
+            if (sorted == array.length) return;
+            E el = array[sorted];
+            int i;
+            for (i=sorted; i>0 && el.compareTo(array[i-1]) < 0; i--) {
+                array[i] = array[i-1];
+            }
+            array[i] = el;
+            sortRecur(array, sorted+1);
+        }
     }
 }

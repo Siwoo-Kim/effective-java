@@ -6,9 +6,20 @@ import java.util.Arrays;
 import java.util.concurrent.ThreadLocalRandom;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.in;
 import static org.assertj.core.api.Assertions.registerCustomDateFormat;
 
 public class SortAlgorithm {
+
+    public static void main(String[] args) {
+        for (int i=0; i<5; i++) {
+            Integer[] origin = create();
+            Sort<Integer> sort = new MergeSort<>();
+            sort.sort(origin);
+            System.out.println(Arrays.toString(origin));
+            assertThat(origin).isSorted();
+        }
+    }
 
     interface Sort<E extends Comparable<E>> {
         void sort(E[] array);
@@ -64,16 +75,6 @@ public class SortAlgorithm {
         }
     }
 
-    public static void main(String[] args) {
-        for (int i=0; i<5; i++) {
-            Integer[] origin = create();
-            Sort<Integer> sort = new InsertionSort<>();
-            sort.sort(origin);
-            System.out.println(Arrays.toString(origin));
-            assertThat(origin).isSorted();
-        }
-    }
-
     private static Integer[] create() {
         ThreadLocalRandom random = ThreadLocalRandom.current();
         Integer[] array = new Integer[15];
@@ -114,7 +115,6 @@ public class SortAlgorithm {
 
     static class InsertionSort<E extends Comparable<E>> implements Sort<E> {
 
-        @Override
         public void sort(E[] array) {
 //            final int N = array.length;
 //            for (int sorted=1; sorted<N; sorted++) {
@@ -137,6 +137,51 @@ public class SortAlgorithm {
             }
             array[i] = el;
             sortRecur(array, sorted+1);
+        }
+    }
+
+    public static class MergeSort<E extends Comparable<E>> implements Sort<E> {
+
+        @Override
+        public void sort(E[] array) {
+            mergeSort(array, 0, array.length);
+        }
+
+        /**
+         * 배열을 왼쪽, 오른쪽 배열로 나눈 후 다시 정렬하여 반환
+         * @param array
+         * @param low  현재 시작 인덱스
+         * @param high 마지막 시작 인덱스 + 1
+         */
+        private void mergeSort(E[] array, int low, int high) {
+            //BASE CASE: 정열해야할 요소가 하나
+            if (high-low < 2) return;
+            //왼쪽, 오른쪽 배열로 분할
+            int mid = (high + low) / 2;
+            mergeSort(array, low, mid);
+            mergeSort(array, mid, high);
+            merge(array, low, mid, high);
+        }
+
+        /**
+         *
+         * @param array
+         * @param start 왼쪽 배열의 시작 인덱스
+         * @param mid   오른쪽 배열의 시작 인덱스
+         * @param end   오른쪽 배열 마지막 인덱스 + 1
+         */
+        private void merge(E[] array, int start, int mid, int end) {
+            //이미 왼쪽, 오른쪽이 모두 순차적으로 정렬되있다면 그대로 반환
+            if (array[mid-1].compareTo(array[mid]) <= 0) return;
+
+            E[] r = (E[]) java.lang.reflect.Array
+                    .newInstance(array.getClass().getComponentType(), end - start);
+            int index=0,left=start,right=mid;
+            while (left < mid && right < end)
+                r[index++] = array[left].compareTo(array[right]) <= 0 ?
+                        array[left++] : array[right++];
+            System.arraycopy(array, left, array, start+index, mid-left);
+            System.arraycopy(r, 0, array, start, index);
         }
     }
 }
